@@ -4,39 +4,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Onscreen Overlay</title>
+  <title>Onscreen</title>
   <style>
-    body {
+    * {
       margin: 0;
-      padding: 16px;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
       background-color: #1e1e2e;
-      /* Claude/Dark design palette template reference */
       color: #cdd6f4;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       user-select: none;
       overflow: hidden;
+      height: 100vh;
     }
 
-    .panel-placeholder {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
+    #root {
       height: 100vh;
-      border: 1px solid #45475a;
-      border-radius: 8px;
-      text-align: center;
     }
   </style>
 </head>
 
 <body>
-  <div id="root">
-    <div class="panel-placeholder">
-      <h3>Onscreen MVP</h3>
-      <p style="color: #a6adc8;">Floating Overlay Initialized Successfully</p>
-    </div>
-  </div>
+  <!-- Empty root — React mounts here via renderer.tsx -->
+  <div id="root"></div>
   <script type="module" src="/src/renderer.tsx"></script>
 </body>
 
