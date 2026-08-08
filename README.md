@@ -1,259 +1,354 @@
-# Screen Assistant — Complete Project Plan
+# Onscreen
 
-## The Idea
+> A screen-aware AI assistant that lives on your desktop. Press a keyboard shortcut, and an AI that can see your screen appears instantly — ready to help you fix errors, navigate software, or walk you through complex workflows.
 
-A floating AI assistant that lives on your screen as an overlay. Instead of alt-tabbing to YouTube, taking screenshots, and pasting them into ChatGPT every time you get stuck — you hit a keyboard shortcut, a chat panel appears right where your cursor is, and the AI can already see your screen. You just type your question and get an answer instantly, in context, without leaving what you're doing.
-
-**Origin story:** The idea came from the frustration of installing Ubuntu in dual boot — hitting errors, having to take screenshots, switching to a browser, uploading the screenshot, typing context, waiting for an answer, going back to the terminal, and repeating that whole loop over and over for every single error.
-
-**The real competitor is YouTube** — not other AI tools. People go to YouTube when they're stuck, watch 18-minute videos to find 40 seconds of relevant content, pause and unpause constantly, and still might not find their exact situation. This app replaces that entire habit with one keyboard shortcut.
-
-**What makes it different from Cluely:**
-Cluely is built to help people cheat in interviews and meetings. This app is built to genuinely teach people and help them fix problems. Completely different purpose, completely different user, completely different ethics.
+![Demo](./assets/demo.gif)
 
 ---
 
-## All Decisions Made
+## The Problem
 
-### Trigger
-- **GNOME custom keyboard shortcut** — e.g. `Ctrl + Shift + Space`
-- Set once in GNOME Settings → Keyboard → Custom Shortcuts
-- Works natively on Wayland, no library issues
-- Triple click was considered but dropped due to Ubuntu 26.04 Wayland limitations
-- Can revisit triple click later once core app is working
+When you get stuck on an error, the current workflow is painful:
 
-### Panel Position
-- Appears **near the cursor** at the point of the trigger
-- Stays there until closed
-- **Draggable** if it covers something important
-- Does NOT follow the cursor around — appears on trigger, stays put
+1. Take a screenshot
+2. Open a browser
+3. Go to ChatGPT or Claude
+4. Upload the screenshot
+5. Type context around it
+6. Wait for an answer
+7. Go back to your terminal
+8. If it breaks again — repeat everything
 
-### Visual Style
-- **Solid, visible, dark panel** — not transparent or ghost-like
-- Rounded corners, clean and minimal
-- Inspired by Claude's input bar aesthetic
-- Dark theme so it doesn't blind you when it pops up over a bright screen
+**Onscreen eliminates this entire loop.** One keyboard shortcut captures your screen and opens a chat panel right where you are. The AI already sees what you are looking at. You just ask.
 
-### Panel Size
-- **Compact** — around 600px wide
-- Not full width (that feels like it owns your screen)
+---
 
-### Interaction Mode
-- **Conversation mode** — full back and forth chat, not single answer
-- Panel **starts as a small input bar** at the bottom and **expands upward** as the conversation grows
-- Conversation history is maintained within the session
+## Demo
 
-### Input Bar Design
 ```
-┌─────────────────────────────────────┐
-│  AI answer appears here             │
-│  expanding upward as you chat       │
-│                                     │
-│  You: what is this error?           │
-│  AI: This is a GRUB error...        │
-│                                     │
-├─────────────────────────────────────┤
-│  + │ Write a message...  │ 🎤  ►   │
-└─────────────────────────────────────┘
+Press Ctrl+Shift+Space anywhere on your screen
+         ↓
+Screenshot captured automatically and silently
+         ↓
+Chat panel appears near your cursor
+         ↓
+Type your question — "what is this error?" or "how do I fix this?"
+         ↓
+AI responds with full context of what is on your screen
+         ↓
+Press ESC to close — app stays running in background
 ```
-- `+` button — manual file or image attachment on top of automatic screenshot
-- Text input in the middle with placeholder "Write a message..."
-- Microphone button — voice input
-- Send button
-- Current model name shown in the bar (e.g. "claude-sonnet-4-6")
 
-### What the AI Sees Every Message
-- **Screenshot** — taken automatically and silently the moment you hit send
-- **Active window name** — so AI knows if you're in VS Code, Terminal, Figma etc.
-- **Full conversation history** — AI remembers everything said earlier in the session
-- **Custom system prompt** — from user settings
-- User never manually takes or attaches a screenshot — it's always automatic
+---
 
-### AI Layer
-- **LiteLLM** as the unified AI interface
-- Supports Claude, GPT-4o, Gemini, Ollama (local), and anything else
-- Write the code once, works with any model
-- Each user provides their own API key
-- Future proof — new models work without changing any code
-- Supports multimodal / vision models for screenshot understanding
+## Features
 
-### Settings Screen
-- Model selection dropdown (Claude, GPT-4o, Gemini, Ollama etc.)
-- API key input field
-- Keyboard shortcut reminder
-- **Custom system prompt** — editable text area, sensible default pre-filled
-  - Example default: "You are a helpful assistant that can see my screen. Give short, direct, step-by-step answers. I am currently using {active_window}."
-  - User can personalize: "I am a Linux beginner, explain everything simply"
-  - User can personalize: "Always give terminal commands, assume I know basic Linux"
+- **Screen aware** — automatically captures your screen when triggered, no manual screenshot needed
+- **Any software** — works on top of any app, terminal, browser, or tool
+- **Conversation mode** — full back and forth chat, not just single answers. Ask follow up questions
+- **Multi-model support** — works with Claude, GPT-4o, Gemini, Groq, or any local Ollama model via LiteLLM
+- **Bring your own key** — uses your own API key, no subscription, no middleman
+- **Privacy first** — screenshots are never stored. They live in memory for the duration of the session and are discarded when you close the panel
+- **Wayland native** — built for modern Ubuntu (26.04) with full Wayland support
 
-### Voice Input
-- **Yes** — microphone button in the input bar
-- Speak your question instead of typing
-- Converts speech to text, drops it in the input field
-- User still hits send manually
+---
 
-### System Tray
-- App lives in the **system tray** when not in use
-- Small icon, always running in background, not stealing focus
-- Right click menu: Open Settings, Quit
+## Architecture
 
-### Operating System
-- **Ubuntu 26.04 LTS (Resolute)** — Wayland session
-- GNOME 49 — X11 support completely removed, Wayland only
-- This is why we use GNOME keyboard shortcuts instead of pynput for the trigger
+Onscreen is split into two layers that communicate over localhost:
+
+```
+┌─────────────────────────────────┐
+│     Electron Frontend           │
+│     TypeScript + React          │
+│                                 │
+│  - Floating overlay window      │
+│  - Chat panel UI                │
+│  - Input bar                    │
+│  - Listens on port 8001         │
+└──────────────┬──────────────────┘
+               │ HTTP (localhost)
+               │
+┌──────────────▼──────────────────┐
+│     Python Backend              │
+│     FastAPI + uvicorn           │
+│                                 │
+│  - Screenshot capture           │
+│  - LiteLLM AI integration       │
+│  - Conversation management      │
+│  - Runs on port 8000            │
+└─────────────────────────────────┘
+```
+
+### How one request flows
+
+```
+User presses Ctrl+Shift+Space
+         ↓
+GNOME shortcut calls: curl -X POST http://localhost:8000/trigger
+         ↓
+Python backend captures screenshot via XDG Desktop Portal
+         ↓
+Python calls Electron on port 8001 → /show
+         ↓
+Electron opens the chat panel
+         ↓
+User types question and hits send
+         ↓
+Electron → POST /chat → FastAPI
+         ↓
+Python sends to LiteLLM:
+  - Screenshot as base64 image
+  - Conversation history
+  - System prompt
+  - User question
+         ↓
+AI response streams back
+         ↓
+Chat panel displays response
+         ↓
+User presses ESC → panel closes → screenshot cleared from memory
+```
 
 ---
 
 ## Tech Stack
 
-### Frontend — Electron + TypeScript + React
-Everything the user sees and interacts with.
-
+### Frontend
 | Technology | Purpose |
 |---|---|
-| **Electron** | Desktop app shell, overlay window, always-on-top, system tray |
-| **TypeScript** | Language for all frontend logic |
-| **React** | Chat panel UI, input bar, settings screen components |
-| **Tailwind CSS** | Styling — dark theme, rounded corners, clean look |
+| Electron 43 | Desktop app shell, always-on-top overlay window |
+| TypeScript | Type-safe frontend logic |
+| React 19 | Chat panel UI components |
+| Vite 8 | Frontend bundler and dev server |
 
-### Backend — Python + FastAPI
-The brain. Runs as a local server in the background on the user's machine.
-
+### Backend
 | Library | Purpose |
 |---|---|
-| **FastAPI** | Local HTTP server — Electron talks to this |
-| **uvicorn** | Runs the FastAPI server |
-| **litellm** | Unified AI interface — Claude, GPT-4o, Gemini, Ollama |
-| **mss** | Fast screenshot capture, multi-monitor support |
-| **Pillow** | Image processing, base64 encoding for API |
-| **SpeechRecognition** | Voice to text conversion |
-| **PyAudio** | Microphone capture for voice input |
-| **python-dotenv** | Loads API keys from .env file |
-| **json** | Settings storage (built into Python) |
-| **base64** | Screenshot encoding (built into Python) |
+| Python 3.13 | Backend language |
+| FastAPI | Local HTTP server |
+| uvicorn | ASGI server runner |
+| LiteLLM | Unified AI model interface |
+| Pillow | Screenshot image processing |
+| httpx | Async HTTP client |
+| python-dotenv | Environment variable management |
 
-### Communication Between Frontend and Backend
+### Package Managers
+- Frontend: `npm`
+- Backend: `uv`
+
+---
+
+## Prerequisites
+
+- Ubuntu 26.04 LTS (Wayland)
+- Node.js v18+
+- Python 3.11+
+- uv (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- A Groq API key (free at console.groq.com) or any LiteLLM supported provider
+
+---
+
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/aashutosh-yadav/onscreen.git
+cd onscreen
 ```
-Electron (TypeScript)  ←→  FastAPI (Python)
-                           running on localhost:8000
+
+### 2. Set up the Python backend
+
+```bash
+cd backend
+uv pip install fastapi uvicorn litellm pillow httpx python-dotenv
 ```
-Electron sends a POST request with the message to the Python server. Python takes the screenshot, grabs the active window name, calls LiteLLM, streams the response back to Electron. Electron displays it in the chat panel word by word.
+
+Create your environment file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and add your API key:
+
+```
+GROQ_API_KEY=your_key_here
+```
+
+### 3. Set up the Electron frontend
+
+```bash
+cd ../frontend
+npm install
+```
+
+### 4. Set up the GNOME keyboard shortcut
+
+Go to **Settings → Keyboard → View and Customize Shortcuts → Custom Shortcuts → Add Shortcut**
+
+Fill in:
+- **Name:** `Onscreen`
+- **Command:** `curl -X POST http://localhost:8000/trigger`
+- **Shortcut:** `Ctrl+Shift+Space`
+
+---
+
+## Running the App
+
+You need two terminals running simultaneously:
+
+**Terminal 1 — Start the Python backend:**
+```bash
+cd backend
+uv run uvicorn main:app --reload --port 8000
+```
+
+**Terminal 2 — Start the Electron frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+Once both are running, press `Ctrl+Shift+Space` anywhere on your screen to trigger Onscreen.
+
+---
+
+## Usage
+
+| Action | How |
+|---|---|
+| Trigger Onscreen | `Ctrl+Shift+Space` |
+| Ask a question | Type in the input bar and press Enter or click Send |
+| Close the panel | Press `Escape` or click "ESC to close" |
+| Trigger again | Press `Ctrl+Shift+Space` again — takes a fresh screenshot |
+
+### Tips
+
+- Trigger Onscreen right when you see an error — the screenshot captures that exact moment
+- You can have a full conversation — ask follow up questions and the AI remembers context
+- The AI can see everything on your screen — error messages, code, UI elements, terminal output
+
+---
+
+## Configuration
+
+### Changing the AI model
+
+Open `backend/main.py` and find this line:
+
+```python
+model="groq/qwen/qwen3.6-27b",
+```
+
+Replace with any LiteLLM supported model:
+
+```python
+# Claude (requires Anthropic API key)
+model="claude-opus-4-6"
+
+# GPT-4o (requires OpenAI API key)
+model="gpt-4o"
+
+# Local Ollama model (free, no API key)
+model="ollama/llava"
+```
+
+Update your `.env` file with the corresponding API key.
+
+### Customizing the system prompt
+
+Open `backend/main.py` and find the system prompt in the `chat` function. Edit it to change how the AI behaves:
+
+```python
+messages.append({
+    "role": "system",
+    "content": """Your custom prompt here.
+    For example: I am a senior Linux engineer. Skip basic explanations."""
+})
+```
 
 ---
 
 ## Project Structure
 
 ```
-screen-assistant/
+onscreen/
 │
-├── frontend/                        — Electron + React + TypeScript
+├── frontend/                        
 │   ├── src/
-│   │   ├── main.ts                  — Electron main process
+│   │   ├── main/
+│   │   │   ├── main.js              # Electron main process
+│   │   │   └── preload.js           # Electron preload script
 │   │   ├── overlay/
-│   │   │   ├── window.ts            — overlay window logic (always-on-top, frameless)
-│   │   │   ├── ChatPanel.tsx        — conversation UI (messages, scroll, expand)
-│   │   │   ├── InputBar.tsx         — input bar component (text, mic, attach, send)
-│   │   │   └── Settings.tsx         — settings screen component
-│   │   └── tray/
-│   │       └── tray.ts              — system tray icon and right-click menu
-│   ├── package.json
-│   └── tsconfig.json
+│   │   │   ├── ChatPanel.tsx        # Chat messages UI
+│   │   │   └── InputBar.tsx         # Input bar component
+│   │   ├── App.tsx                  # Root React component
+│   │   └── renderer.tsx             # React DOM mount
+│   ├── index.html                   
+│   ├── package.json                 
+│   └── vite.config.ts               
 │
-├── backend/                         — Python + FastAPI
-│   ├── main.py                      — starts FastAPI server via uvicorn
-│   ├── routes/
-│   │   ├── chat.py                  — POST /chat — handles AI requests
-│   │   └── settings.py             — GET/POST /settings — handles settings
-│   ├── core/
-│   │   ├── ai.py                    — LiteLLM integration, streaming
-│   │   ├── screenshot.py            — screen capture with mss + Pillow
-│   │   ├── window_info.py           — active window name detection
-│   │   └── voice.py                 — speech recognition
-│   ├── requirements.txt
-│   └── .env                         — API keys (never committed to git)
+├── backend/                         
+│   ├── main.py                      # FastAPI server — all backend logic
+│   ├── .env                         # API keys (never committed)
+│   └── .env.example                 # Template for .env
 │
+├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Data Flow — How One Message Works
+## API Endpoints
 
-```
-User hits Ctrl+Shift+Space
-          ↓
-Electron overlay appears near cursor
-          ↓
-User types a question and hits send
-          ↓
-Electron → POST /chat → FastAPI (localhost:8000)
-          ↓
-Python silently takes a screenshot (mss)
-          ↓
-Python gets active window name
-          ↓
-Screenshot converted to base64 (Pillow + base64)
-          ↓
-LiteLLM sends to AI model:
-  - Screenshot as image
-  - Active window name
-  - Full conversation history
-  - Custom system prompt from settings
-  - User's question
-          ↓
-AI response streams back token by token
-          ↓
-FastAPI streams response → Electron
-          ↓
-Chat panel displays response word by word
-          ↓
-Conversation history updated for next message
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Health check |
+| `POST` | `/trigger` | Called by GNOME shortcut — captures screenshot and signals Electron to open |
+| `POST` | `/chat` | Sends message + screenshot to AI and returns response |
+| `POST` | `/clear` | Clears screenshot from memory when panel closes |
 
 ---
 
-## Deployment Phases
+## Privacy
 
-### Phase 1 — Build for yourself (current goal)
-Local app, your own API key, runs on your Ubuntu machine. No deployment, no other users, just you using it and testing it.
-
-### Phase 2 — Share with technical friends
-Package it so someone who knows what they're doing can clone the repo, install dependencies, and run it. GitHub repo with a good README. Users provide their own API keys.
-
-### Phase 3 — Public beta
-- Bundle Python backend with **PyInstaller** so users don't need Python installed
-- Build Electron installers with **electron-builder** (.deb for Linux, .exe for Windows, .dmg for Mac)
-- Host downloads on GitHub Releases
-- Users still provide their own API keys
-
-### Phase 4 — Real product
-- Your own backend server handling AI calls
-- Subscription model to cover API costs
-- Auto-updates via electron-updater
-- Proper onboarding for non-technical users
-- This is where it becomes a business
-
-**Right now we are building Phase 1. We write the code cleanly enough that Phase 3 is not a nightmare later.**
+- Screenshots are captured only when you press `Ctrl+Shift+Space`
+- Screenshots are stored in Python memory only — never written to disk by the app
+- Screenshots are sent directly to your chosen AI provider API and nowhere else
+- When you close the panel, the screenshot is immediately cleared from memory
+- Your `.env` file containing API keys is in `.gitignore` and never committed
 
 ---
 
-## MVP Scope — First Thing to Build
+## Roadmap
 
-The smallest version that actually works and is useful:
-
-1. Keyboard shortcut triggers the Electron overlay
-2. Dark compact panel appears near cursor
-3. User types a question and hits send
-4. Python backend takes a screenshot automatically
-5. Sends screenshot + question to AI via LiteLLM
-6. Answer appears in the panel, streams word by word
-
-Everything else — settings screen, system tray, voice input, manual attachments, active window detection — gets layered on top of this working core.
+- [ ] Active window detection — tell AI which app you are in
+- [ ] Markdown rendering in chat panel
+- [ ] Auto start on login
+- [ ] System tray icon
+- [ ] Voice input
+- [ ] Custom system prompt via settings UI
+- [ ] RAG — load software documentation for deeper knowledge
+- [ ] Multi-monitor support
 
 ---
 
-## How to Start a New Claude Conversation
+## Why Onscreen
 
-Paste this entire file at the start of the new conversation with this message:
+Most AI tools make you go to them. You see a problem, you leave your work, you open a browser, you describe the problem from memory, you get an answer, you go back to your work.
 
-> "Here is the complete plan for a project I am building called Screen Assistant. We have finished planning and are ready to start coding. Let's begin with the MVP — setting up the project structure and getting the first Electron window to appear on screen. I am on Ubuntu 26.04 Wayland. We are not using pynput. Frontend is Electron + TypeScript + React + Tailwind. Backend is Python + FastAPI. Discuss every decision with me before implementing."
+Onscreen comes to you. It sees exactly what you see, right when you need it, without breaking your flow.
+
+---
+
+## Contributing
+
+This project is in active development. Issues and pull requests are welcome.
+
+---
+
+## License
+
+MIT
