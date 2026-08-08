@@ -2,8 +2,8 @@ import React from 'react';
 
 interface Message {
   id: string;
-  sender: 'user' | 'ai';
-  text: string;
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 interface ChatPanelProps {
@@ -26,9 +26,9 @@ export default function ChatPanel({ messages, isLoading }: ChatPanelProps) {
         <div
           key={msg.id}
           style={{
-            alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-            backgroundColor: msg.sender === 'user' ? '#89b4fa' : '#313244',
-            color: msg.sender === 'user' ? '#11111b' : '#cdd6f4',
+            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+            backgroundColor: msg.role === 'user' ? '#89b4fa' : '#313244',
+            color: msg.role === 'user' ? '#11111b' : '#cdd6f4',
             padding: '8px 12px',
             borderRadius: '12px',
             maxWidth: '85%',
@@ -37,11 +37,10 @@ export default function ChatPanel({ messages, isLoading }: ChatPanelProps) {
             wordBreak: 'break-word'
           }}
         >
-          {msg.text}
+          {msg.content}
         </div>
       ))}
 
-      {/* Loading indicator — shows while waiting for AI response */}
       {isLoading && (
         <div style={{
           alignSelf: 'flex-start',
